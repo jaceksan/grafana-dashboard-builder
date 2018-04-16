@@ -13,8 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from grafana_dashboards.components.base import JsonListGenerator, JsonGenerator
+import re
+import logging
 
 __author__ = 'Jakub Plichta <jakub.plichta@gmail.com>'
+
+logger = logging.getLogger(__name__)
 
 
 class Templates(JsonListGenerator):
@@ -35,37 +39,71 @@ class Query(TemplatesItemBase):
         if not data.get('query'):
             return queries
         refresh_only_first = data.get('refresh-only-first', False)
-        for query_part in data['query'].split('.'):
-            if query_part.startswith('$'):
-                is_first = False if queries else True
-                query = query_part[1:]
-                metric = '*'
-                template_json = {
-                    'type': 'query',
-                    'refresh_on_load': not refresh_only_first or is_first,
-                    'name': query,
-                    'refresh': not refresh_only_first or is_first
-                }
-                if query in data:
-                    query_config = data[query]
-                    metric = query_config.get('metric', metric)
-                    if 'current' in query_config:
-                        current = query_config['current']
-                        template_json['current'] = {
-                            'text': current,
-                            'value': current
-                        }
-                    if 'options' in query_config:
-                        template_json['options'] = [{'text': option, 'value': option} for option in
-                                                    (query_config['options'])]
+        if re.search(r'^show\s+tag', data['query'], re.I):
+            re_query = re.compile(r'key = "([^"]+)"')
+            query_name = re_query.search(data['query']).group(1)
+            is_first = False if queries else True
 
-                    for key in ['regex', 'multi', 'includeAll', 'hide']:
-                        if key in query_config:
-                            template_json[key] = query_config[key]
+            template_json = {
+                'type': 'query',
+                'refresh_on_load': not refresh_only_first or is_first,
+                'name': query_name
+            }
+            if query_name in data:
+                query_config = data[query_name]
+                template_json['refresh'] = 2 if is_first else 1
 
-                template_json['query'] = '.'.join(processed_parts + [metric])
-                queries.append(template_json)
-            processed_parts.append(query_part)
+                if 'datasource' in query_config:
+                    template_json['datasource'] = query_config['datasource']
+                if 'current' in query_config:
+                    current = query_config['current']
+                    template_json['current'] = {
+                        'text': current,
+                        'value': current
+                    }
+
+                if 'options' in query_config:
+                    template_json['options'] = [{'text': option, 'value': option} for option in
+                                                (query_config['options'])]
+
+                for key in ['regex', 'multi', 'includeAll', 'hide', 'sort']:
+                    if key in query_config:
+                        template_json[key] = query_config[key]
+
+            template_json['query'] = data['query']
+            queries.append(template_json)
+        else:
+            for query_part in data['query'].split('.'):
+                if query_part.startswith('$'):
+                    is_first = False if queries else True
+                    query = query_part[1:]
+                    metric = '*'
+                    template_json = {
+                        'type': 'query',
+                        'refresh_on_load': not refresh_only_first or is_first,
+                        'name': query,
+                        'refresh': not refresh_only_first or is_first
+                    }
+                    if query in data:
+                        query_config = data[query]
+                        metric = query_config.get('metric', metric)
+                        if 'current' in query_config:
+                            current = query_config['current']
+                            template_json['current'] = {
+                                'text': current,
+                                'value': current
+                            }
+                        if 'options' in query_config:
+                            template_json['options'] = [{'text': option, 'value': option} for option in
+                                                        (query_config['options'])]
+
+                        for key in ['regex', 'multi', 'includeAll', 'hide']:
+                            if key in query_config:
+                                template_json[key] = query_config[key]
+
+                    template_json['query'] = '.'.join(processed_parts + [metric])
+                    queries.append(template_json)
+                processed_parts.append(query_part)
         return queries
 
 
