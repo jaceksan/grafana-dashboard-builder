@@ -42,10 +42,9 @@ class Graph(PanelsItemBase):
             'title': self.data.get('title', None),
             'span': self.data.get('span', 12),
         })
-        targets = self.data.get('targets', [])
-        if 'target' in self.data:
-            targets.append(self.data['target'])
-        panel_json['targets'] = map(lambda v: {'target': v}, targets)
+
+        self.load_targets(panel_json)
+
         panel_json['nullPointMode'] = self.data.get('nullPointMode', 'null')
         grid_data = self.data.get('grid', {}) or {}
         if 'grid' in self.data or 'y_formats' in self.data:
@@ -91,6 +90,18 @@ class Graph(PanelsItemBase):
             panel_json['y_formats'] = ['short', 'short']
         self._create_component(panel_json, Yaxes)
         return panel_json
+
+    def load_targets(self, panel_json):
+        targets = self.data.get('targets', [])
+        if 'target' in self.data:
+            targets.append(self.data['target'])
+        if len(targets) > 0:
+            panel_json['targets'] = map(lambda v: {'target': v}, targets)
+        else:
+            measurements = self.data.get('measurements', [])
+            if len(measurements) > 0:
+                panel_json['targets'] = measurements
+                print(panel_json['targets'])
 
     def _create_component(self, panel_json, clazz):
         if get_component_type(clazz) in self.data:
